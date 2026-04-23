@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [master]
+    branches: [main, master]
   workflow_dispatch:
 
 permissions:
@@ -17,6 +17,11 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    env:
+      VITE_SPOTIFY_CLIENT_ID: ${{ vars.VITE_SPOTIFY_CLIENT_ID || secrets.VITE_SPOTIFY_CLIENT_ID }}
+      VITE_SPOTIFY_REDIRECT_URI: ${{ vars.VITE_SPOTIFY_REDIRECT_URI || secrets.VITE_SPOTIFY_REDIRECT_URI }}
     steps:
       - uses: actions/checkout@v4
 
@@ -26,10 +31,13 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - name: Check required env
+        run: |
+          if [ -z "$VITE_SPOTIFY_CLIENT_ID" ]; then
+            echo "Missing VITE_SPOTIFY_CLIENT_ID (set it in Settings → Secrets and variables → Actions, or in the github-pages Environment)."
+            exit 1
+          fi
       - run: npm run build
-        env:
-          VITE_SPOTIFY_CLIENT_ID: ${{ vars.VITE_SPOTIFY_CLIENT_ID || secrets.VITE_SPOTIFY_CLIENT_ID }}
-          VITE_SPOTIFY_REDIRECT_URI: ${{ vars.VITE_SPOTIFY_REDIRECT_URI || secrets.VITE_SPOTIFY_REDIRECT_URI }}
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

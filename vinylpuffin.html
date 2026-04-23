@@ -741,10 +741,13 @@
         "streaming",
       ].join(" ");
 
-      if (CLIENT_ID === "YOUR_SPOTIFY_CLIENT_ID") {
+      const HAS_CLIENT_ID = CLIENT_ID && CLIENT_ID !== "YOUR_SPOTIFY_CLIENT_ID";
+      if (!HAS_CLIENT_ID) {
         console.warn(
-          "Set VITE_SPOTIFY_CLIENT_ID in .env or .env.local (see .env.example).",
+          "Missing Spotify Client ID. Set VITE_SPOTIFY_CLIENT_ID in GitHub Actions Variables/Secrets, or in .env/.env.local (see .env.example).",
         );
+        const btn = document.getElementById("connect-btn");
+        if (btn) btn.title = "Missing VITE_SPOTIFY_CLIENT_ID";
       }
 
       // ═══════════════════════════════════════════
@@ -769,6 +772,12 @@
       }
 
       async function redirectToSpotify() {
+        if (!HAS_CLIENT_ID) {
+          alert(
+            "Missing VITE_SPOTIFY_CLIENT_ID. If you're on GitHub Pages, set it in Repo Settings → Secrets and variables → Actions, then re-run the deploy workflow.",
+          );
+          return;
+        }
         const verifier = randomString(64);
         const challenge = b64url(await sha256(verifier));
         sessionStorage.setItem("pkce_verifier", verifier);
