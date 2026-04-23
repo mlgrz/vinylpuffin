@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: "127.0.0.1",
+    host: "https://mlgrz.github.io/vinylpuffin/",
   },
   build: {
     rollupOptions: {
