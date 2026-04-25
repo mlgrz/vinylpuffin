@@ -650,6 +650,9 @@
         <p class="footnote">
           Requires a Spotify account · Your data stays yours
         </p>
+        <p id="auth-error-note" style="display:none;margin-top:1rem;font-size:0.7rem;color:#c0392b;letter-spacing:0.06em;">
+          Your session expired. Please reconnect.
+        </p>
       </div>
     </section>
 
@@ -824,49 +827,73 @@
       async function refreshToken() {
         const rt = sessionStorage.getItem("spotify_refresh");
         if (!rt) return null;
-        const body = new URLSearchParams({
-          grant_type: "refresh_token",
-          refresh_token: rt,
-          client_id: CLIENT_ID,
-        });
-        const res = await fetch("https://accounts.spotify.com/api/token", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body,
-        });
-        const data = await res.json();
-        if (data.access_token) {
-          sessionStorage.setItem("spotify_token", data.access_token);
-          sessionStorage.setItem(
-            "token_expires_at",
-            Date.now() + data.expires_in * 1000,
-          );
-          if (data.refresh_token)
-            sessionStorage.setItem("spotify_refresh", data.refresh_token);
-          return data.access_token;
-        }
+        try {
+          const body = new URLSearchParams({
+            grant_type: "refresh_token",
+            refresh_token: rt,
+            client_id: CLIENT_ID,
+          });
+          const res = await fetch("https://accounts.spotify.com/api/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body,
+          });
+          const data = await res.json();
+          if (data.access_token) {
+            sessionStorage.setItem("spotify_token", data.access_token);
+            sessionStorage.setItem(
+              "token_expires_at",
+              Date.now() + (data.expires_in || 3600) * 1000,
+            );
+            if (data.refresh_token)
+              sessionStorage.setItem("spotify_refresh", data.refresh_token);
+            return data.access_token;
+          }
+        } catch (e) { /* network error — fall through */ }
         return null;
       }
 
       async function getValidToken() {
+        const stored = sessionStorage.getItem("spotify_token");
         const expires = parseInt(
           sessionStorage.getItem("token_expires_at") || "0",
         );
-        if (Date.now() > expires - 60_000) return await refreshToken();
-        return sessionStorage.getItem("spotify_token");
+        // No token at all
+        if (!stored) return null;
+        // Expiry unknown (e.g. right after first code exchange) — use as-is,
+        // let the 401-retry path handle it if it happens to be stale
+        if (!expires) return stored;
+        // Still fresh
+        if (Date.now() < expires - 60_000) return stored;
+        // Expired — try refresh, fall back to stored so 401-retry can fire
+        const refreshed = await refreshToken();
+        return refreshed || stored;
+      }
+
+      function clearSession() {
+        ["spotify_token", "spotify_refresh", "token_expires_at", "pkce_verifier"]
+          .forEach((k) => sessionStorage.removeItem(k));
       }
 
       async function bootstrapToken() {
         const code = new URLSearchParams(window.location.search).get("code");
-        if (code) return await exchangeCode(code);
-        return sessionStorage.getItem("spotify_token");
+        if (code) {
+          const tok = await exchangeCode(code);
+          if (tok) return tok;
+          // Code was already used or invalid — wipe and let user re-auth
+          clearSession();
+          return null;
+        }
+        return sessionStorage.getItem("spotify_token") || null;
       }
 
       // ═══════════════════════════════════════════
       // SPOTIFY REST HELPERS
       // ═══════════════════════════════════════════
-      async function api(endpoint, opts = {}) {
+      async function api(endpoint, opts = {}, _retry = true) {
         const tok = await getValidToken();
+        if (!tok) throw Object.assign(new Error("No token"), { status: 401, needsReauth: true });
+
         const res = await fetch("https://api.spotify.com/v1" + endpoint, {
           ...opts,
           headers: {
@@ -876,7 +903,17 @@
           },
         });
         if (res.status === 204 || res.status === 202) return null;
-        if (!res.ok) throw new Error("Spotify " + res.status + ": " + endpoint);
+
+        // One automatic retry on 401 — force a fresh token first
+        if (res.status === 401 && _retry) {
+          const fresh = await refreshToken();
+          if (fresh) return api(endpoint, opts, false);
+          // Refresh also failed — session is truly dead
+          clearSession();
+          throw Object.assign(new Error("Session expired"), { status: 401, needsReauth: true });
+        }
+
+        if (!res.ok) throw Object.assign(new Error("Spotify " + res.status), { status: res.status });
         return res.json();
       }
 
@@ -1134,11 +1171,19 @@
           renderAlbums(albums);
         } catch (e) {
           document.getElementById("loading-state").innerHTML = "";
-          document.getElementById("album-grid").innerHTML = `
+          if (e.needsReauth) {
+            // Token is genuinely dead — send back to landing to re-auth
+            document.getElementById("collection").classList.remove("active");
+            document.getElementById("landing").classList.add("active");
+            const note = document.getElementById("auth-error-note");
+            if (note) note.style.display = "block";
+          } else {
+            document.getElementById("album-grid").innerHTML = `
       <div class="error-msg" style="grid-column:1/-1">
-        <h2>Couldn't load your collection</h2>
-        <p>Your session may have expired. Try reconnecting.</p>
+        <h2>Something went wrong</h2>
+        <p style="margin-top:0.5rem">${e.message || "Unknown error"}</p>
       </div>`;
+          }
         }
       }
 
@@ -1159,7 +1204,13 @@
       // ═══════════════════════════════════════════
       (async () => {
         const token = await bootstrapToken();
-        if (token) await initCollection(token);
+        if (token) {
+          await initCollection(token);
+        } else {
+          // No valid token — ensure landing is shown
+          document.getElementById("landing").classList.add("active");
+          document.getElementById("collection").classList.remove("active");
+        }
       })();
     </script>
   </body>
