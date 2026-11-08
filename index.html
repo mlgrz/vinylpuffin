@@ -1,28 +1,27 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <link rel="icon" href="./assets/img/puffin.ico" type="image/x-icon" />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1a1714" />
     <title>VinylPuffin</title>
+    <script>
+      // Apply a saved light/dark choice before first paint (see ThemeToggle.jsx).
+      try {
+        const t = localStorage.getItem("vinylpuffin.theme");
+        if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+      } catch {}
+    </script>
+    <link rel="icon" href="./assets/img/puffin.ico" type="image/x-icon" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
-    <p>Loading VinylPuffin…</p>
-    <p>
-      If you’re not redirected,
-      <a id="open-link" href="./vinylpuffin.html">open the app</a>.
-    </p>
-    <script>
-      // Keep the app in `vinylpuffin.html`, but allow using `/` as the Spotify redirect URI.
-      // Works on GitHub Pages (where the base path is `/<repo>/`) and preserves ?code=...
-      const base = location.pathname.endsWith("/")
-        ? location.pathname
-        : location.pathname.replace(/[^/]*$/, "");
-      const target =
-        base + "vinylpuffin.html" + location.search + location.hash;
-      document.getElementById("open-link").href =
-        "./vinylpuffin.html" + location.search + location.hash;
-      location.replace(target);
-    </script>
+    <div id="root"></div>
+    <script type="module" src="./src/main.jsx"></script>
   </body>
 </html>
