@@ -9,6 +9,7 @@ import AlbumCard from "./components/AlbumCard.jsx";
 import AlbumDetail from "./components/AlbumDetail.jsx";
 import CrateDialog from "./components/CrateDialog.jsx";
 import PlayerBar from "./components/PlayerBar.jsx";
+import { BackdropVinyl, IdleScreen } from "./components/Ambient.jsx";
 import SearchView from "./components/SearchView.jsx";
 import { PencilIcon, SearchIcon } from "./components/Icons.jsx";
 
@@ -222,6 +223,7 @@ function Shell({ onSignOut }) {
 
   return (
     <div className={`app${player.album || player.error ? " has-player" : ""}`}>
+      <BackdropVinyl player={player} />
       <Sidebar
         view={view}
         go={(v) => {
@@ -356,6 +358,7 @@ function Shell({ onSignOut }) {
       )}
 
       <PlayerBar player={player} onOpenAlbum={(album) => setOpen({ album })} />
+      <IdleScreen player={player} />
 
       {toast && (
         <div className="toast" key={toast.key} role="status">
