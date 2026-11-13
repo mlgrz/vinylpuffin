@@ -17,8 +17,11 @@ export default function ReportDialog({ onClose }) {
   const [state, setState] = useState({ phase: "edit", error: null }); // edit | sending | sent
   const inputRef = useRef(null);
 
+  // Focus the first field once, when the dialog opens. (Not tied to onClose:
+  // the parent re-renders often, and each re-render would steal focus back.)
+  useEffect(() => inputRef.current?.focus(), []);
+
   useEffect(() => {
-    inputRef.current?.focus();
     const onKey = (e) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

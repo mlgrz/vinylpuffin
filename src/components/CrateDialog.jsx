@@ -9,8 +9,10 @@ export default function CrateDialog({ crate, count, onSave, onDelete, onClose })
   const [color, setColor] = useState(crate?.color || CRATE_COLORS[0]);
   const inputRef = useRef(null);
 
+  // Focus once on open; re-running this on every parent re-render would steal focus.
+  useEffect(() => inputRef.current?.focus(), []);
+
   useEffect(() => {
-    inputRef.current?.focus();
     const onKey = (e) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
