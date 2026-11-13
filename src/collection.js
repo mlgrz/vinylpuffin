@@ -1,8 +1,14 @@
 // Your organization data: shelves (want / listened), ratings, notes and crates.
-// Spotify only knows which albums you've saved; everything else lives here,
-// in this browser's localStorage. Use Export / Import to back it up or move it.
+// Spotify only knows which albums you've saved; everything else lives here.
+// It's always kept in this browser's localStorage, and synced to the cloud
+// when VITE_SYNC_URL is set (see src/sync.js). Export / Import still work.
+//
+// Every album entry and crate carries `updatedAt`, and removals leave a
+// timestamped tombstone in `deleted`, so two devices' copies can be merged
+// record by record (mergeCollections) instead of one overwriting the other.
 
 import { useEffect, useMemo, useReducer } from "react";
+import { useCloudSync } from "./sync.js";
 
 const KEY = "vinylpuffin.collection.v1";
 
@@ -16,7 +22,11 @@ export const CRATE_COLORS = [
   "#1A1714", // ink
 ];
 
-const blank = () => ({ version: 1, albums: {}, crates: [] });
+const blank = () => ({ version: 1, albums: {}, crates: [], deleted: {} });
+
+// Tombstones older than this are forgotten. A device that stays offline for
+// longer could bring a removed album back; that's an acceptable trade-off.
+const TOMBSTONE_TTL_MS = 180 * 24 * 60 * 60 * 1000;
 
 export function parseBackup(data) {
   if (
@@ -28,7 +38,62 @@ export function parseBackup(data) {
   ) {
     throw new Error("That file isn't a VinylPuffin backup.");
   }
-  return { version: 1, albums: data.albums, crates: data.crates };
+  const deleted =
+    data.deleted && typeof data.deleted === "object" && !Array.isArray(data.deleted)
+      ? data.deleted
+      : {};
+  return { version: 1, albums: data.albums, crates: data.crates, deleted };
+}
+
+const stamp = (r) => r?.updatedAt || r?.createdAt || r?.addedAt || "";
+const newer = (x, y) => (!x ? y : !y ? x : stamp(y) > stamp(x) ? y : x);
+
+// Combine two copies of the collection (e.g. this device and the cloud).
+// For each album and crate the most recently changed version wins, and a
+// removal wins over any version older than it.
+export function mergeCollections(a, b) {
+  const cutoff = new Date(Date.now() - TOMBSTONE_TTL_MS).toISOString();
+  const deleted = {};
+  for (const src of [a.deleted, b.deleted]) {
+    for (const [k, t] of Object.entries(src || {})) {
+      if (t > cutoff && !(deleted[k] >= t)) deleted[k] = t;
+    }
+  }
+  const alive = (key, rec) => rec && !(deleted[key] && deleted[key] >= stamp(rec));
+
+  const aCrates = new Map(a.crates.map((c) => [c.id, c]));
+  const bCrates = new Map(b.crates.map((c) => [c.id, c]));
+  const crates = [];
+  for (const id of new Set([...aCrates.keys(), ...bCrates.keys()])) {
+    const c = newer(aCrates.get(id), bCrates.get(id));
+    if (alive(`crate:${id}`, c)) crates.push(c);
+  }
+  crates.sort((x, y) => (x.createdAt || "").localeCompare(y.createdAt || ""));
+  const crateIds = new Set(crates.map((c) => c.id));
+
+  const albums = {};
+  for (const id of new Set([...Object.keys(a.albums), ...Object.keys(b.albums)])) {
+    const e = newer(a.albums[id], b.albums[id]);
+    if (!alive(`album:${id}`, e)) continue;
+    // Drop links to crates that were deleted elsewhere.
+    albums[id] = e.crates.every((c) => crateIds.has(c))
+      ? e
+      : { ...e, crates: e.crates.filter((c) => crateIds.has(c)) };
+  }
+  return { version: 1, albums, crates, deleted };
+}
+
+// JSON with sorted keys, so two equal collections give the same string.
+export function stableStringify(v) {
+  if (Array.isArray(v)) return `[${v.map(stableStringify).join(",")}]`;
+  if (v && typeof v === "object") {
+    return `{${Object.keys(v)
+      .sort()
+      .filter((k) => v[k] !== undefined)
+      .map((k) => `${JSON.stringify(k)}:${stableStringify(v[k])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(v);
 }
 
 function load() {
@@ -62,9 +127,15 @@ function updateAlbum(state, meta, change) {
   const next = { ...prev, ...change(prev), meta: { ...prev.meta, ...meta } };
   next.updatedAt = now();
   const albums = { ...state.albums };
-  if (isEmpty(next)) delete albums[meta.id];
-  else albums[meta.id] = next;
-  return { ...state, albums };
+  const deleted = { ...state.deleted };
+  if (isEmpty(next)) {
+    delete albums[meta.id];
+    deleted[`album:${meta.id}`] = next.updatedAt;
+  } else {
+    albums[meta.id] = next;
+    delete deleted[`album:${meta.id}`];
+  }
+  return { ...state, albums, deleted };
 }
 
 const toggle = (list, value) =>
@@ -103,11 +174,15 @@ function reducer(state, action) {
       return {
         ...state,
         crates: state.crates.map((c) =>
-          c.id === action.id ? { ...c, ...action.patch } : c,
+          c.id === action.id ? { ...c, ...action.patch, updatedAt: now() } : c,
         ),
       };
     case "deleteCrate": {
-      let next = { ...state, crates: state.crates.filter((c) => c.id !== action.id) };
+      let next = {
+        ...state,
+        crates: state.crates.filter((c) => c.id !== action.id),
+        deleted: { ...state.deleted, [`crate:${action.id}`]: now() },
+      };
       for (const [id, entry] of Object.entries(state.albums)) {
         if (entry.crates.includes(action.id)) {
           next = updateAlbum(next, { id }, (e) => ({
@@ -119,6 +194,21 @@ function reducer(state, action) {
     }
     case "replace":
       return action.data;
+    case "import": {
+      // Replace everything, and record what went away so the removals also
+      // reach your other devices instead of being merged back in.
+      const t = now();
+      const deleted = { ...state.deleted, ...action.data.deleted };
+      for (const id of Object.keys(state.albums)) {
+        if (!action.data.albums[id]) deleted[`album:${id}`] = t;
+      }
+      for (const c of state.crates) {
+        if (!action.data.crates.some((x) => x.id === c.id)) deleted[`crate:${c.id}`] = t;
+      }
+      for (const id of Object.keys(action.data.albums)) delete deleted[`album:${id}`];
+      for (const c of action.data.crates) delete deleted[`crate:${c.id}`];
+      return { ...action.data, deleted };
+    }
     default:
       return state;
   }
@@ -158,18 +248,21 @@ export function useCollection() {
       toggleHighlight: (meta, trackId) =>
         dispatch({ type: "toggleHighlight", meta, trackId }),
       addCrate: (name, color) => {
-        const crate = { id: newId(), name, color, createdAt: now() };
+        const t = now();
+        const crate = { id: newId(), name, color, createdAt: t, updatedAt: t };
         dispatch({ type: "addCrate", crate });
         return crate;
       },
       updateCrate: (id, patch) => dispatch({ type: "updateCrate", id, patch }),
       deleteCrate: (id) => dispatch({ type: "deleteCrate", id }),
-      replaceAll: (data) => dispatch({ type: "replace", data: parseBackup(data) }),
+      replaceAll: (data) => dispatch({ type: "import", data: parseBackup(data) }),
     }),
     [],
   );
 
-  return { collection: state, actions };
+  const sync = useCloudSync(state, dispatch);
+
+  return { collection: state, actions, sync };
 }
 
 export function exportBackup(collection) {

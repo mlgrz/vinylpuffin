@@ -8,6 +8,8 @@ import Sidebar from "./components/Sidebar.jsx";
 import AlbumCard from "./components/AlbumCard.jsx";
 import AlbumDetail from "./components/AlbumDetail.jsx";
 import CrateDialog from "./components/CrateDialog.jsx";
+import AboutDialog from "./components/AboutDialog.jsx";
+import ReportDialog from "./components/ReportDialog.jsx";
 import PlayerBar from "./components/PlayerBar.jsx";
 import { BackdropVinyl, IdleScreen } from "./components/Ambient.jsx";
 import SearchView from "./components/SearchView.jsx";
@@ -80,7 +82,7 @@ function sortAlbums(list, sort, view, entries) {
 }
 
 function Shell({ onSignOut }) {
-  const { collection, actions } = useCollection();
+  const { collection, actions, sync } = useCollection();
   const entries = collection.albums;
   const crates = collection.crates;
 
@@ -92,6 +94,7 @@ function Shell({ onSignOut }) {
   const [open, setOpen] = useState(null); // { album, focusRating }
   const [crateDialog, setCrateDialog] = useState(null); // { crate?, assignTo? }
   const [toast, setToast] = useState(null);
+  const [dialog, setDialog] = useState(null); // "about" | "report"
   const [filter, setFilter] = useState("");
   const [sorts, setSorts] = useState({ listened: "rating" });
   const [unsortedOnly, setUnsortedOnly] = useState(false);
@@ -167,7 +170,7 @@ function Shell({ onSignOut }) {
   useEffect(() => {
     const onKey = (e) => {
       if (e.target.closest?.("input, textarea, select, [contenteditable]")) return;
-      if (e.key === "Escape" && !crateDialog) setOpen(null);
+      if (e.key === "Escape" && !crateDialog && !dialog) setOpen(null);
       if (e.key === " " && player.track && !e.target.closest?.("button, a")) {
         e.preventDefault();
         player.toggle();
@@ -175,7 +178,7 @@ function Shell({ onSignOut }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [crateDialog, player]);
+  }, [crateDialog, dialog, player]);
 
   const importFile = async (file) => {
     try {
@@ -238,6 +241,9 @@ function Shell({ onSignOut }) {
         onExport={() => exportBackup(collection)}
         onImport={importFile}
         onLogout={() => onSignOut()}
+        onAbout={() => setDialog("about")}
+        onReport={() => setDialog("report")}
+        sync={sync}
       />
 
       <main className="main">
@@ -356,6 +362,11 @@ function Shell({ onSignOut }) {
           }}
         />
       )}
+
+      {dialog === "about" && (
+        <AboutDialog onClose={() => setDialog(null)} onReport={() => setDialog("report")} />
+      )}
+      {dialog === "report" && <ReportDialog onClose={() => setDialog(null)} />}
 
       <PlayerBar player={player} onOpenAlbum={(album) => setOpen({ album })} />
       <IdleScreen player={player} />

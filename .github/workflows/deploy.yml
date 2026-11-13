@@ -22,6 +22,7 @@ jobs:
     env:
       VITE_SPOTIFY_CLIENT_ID: ${{ vars.VITE_SPOTIFY_CLIENT_ID || secrets.VITE_SPOTIFY_CLIENT_ID }}
       VITE_SPOTIFY_REDIRECT_URI: ${{ vars.VITE_SPOTIFY_REDIRECT_URI || secrets.VITE_SPOTIFY_REDIRECT_URI }}
+      VITE_SYNC_URL: ${{ vars.VITE_SYNC_URL || secrets.VITE_SYNC_URL }}
     steps:
       - uses: actions/checkout@v4
 

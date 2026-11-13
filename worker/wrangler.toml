@@ -1,0 +1,16 @@
+name = "vinylpuffin-sync"
+main = "src/index.js"
+compatibility_date = "2026-05-01"
+
+[vars]
+# Sites allowed to call this worker (comma-separated, exact origins).
+ALLOWED_ORIGINS = "http://127.0.0.1:5173,https://mlgrz.github.io"
+# Where in-app bug reports are filed as issues. The token is a secret:
+#   npx wrangler secret put GITHUB_TOKEN
+GITHUB_REPO = "mlgrz/vinylpuffin"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "vinylpuffin"
+# Paste the id printed by `npx wrangler d1 create vinylpuffin`.
+database_id = "b48b4169-ede1-4a4a-933c-48bd8a943fe0"

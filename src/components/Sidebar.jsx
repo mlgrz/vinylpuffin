@@ -14,6 +14,9 @@ export default function Sidebar({
   onExport,
   onImport,
   onLogout,
+  onAbout,
+  onReport,
+  sync,
 }) {
   const fileRef = useRef(null);
   const link = (key, label, icon, count) => (
@@ -88,10 +91,13 @@ export default function Sidebar({
             <span>{me.display_name || me.id}</span>
           </div>
         )}
+        <SyncBadge sync={sync} />
         <div className="foot-links">
           <button onClick={onExport}>Export</button>
           <button onClick={() => fileRef.current?.click()}>Import</button>
           <button onClick={onLogout}>Log out</button>
+          <button onClick={onAbout}>About</button>
+          <button onClick={onReport}>Report a bug</button>
         </div>
         <ThemeToggle className="on-dark" />
         <input
@@ -107,5 +113,28 @@ export default function Sidebar({
         />
       </div>
     </nav>
+  );
+}
+
+const SYNC_LABELS = {
+  syncing: "Syncing…",
+  synced: "Synced to the cloud",
+  offline: "Offline · saved on this device",
+  error: "Sync failed · saved on this device",
+};
+
+function SyncBadge({ sync }) {
+  if (!sync || sync.status === "off") return null;
+  const failed = sync.status === "offline" || sync.status === "error";
+  return (
+    <p className={`sync-badge is-${sync.status}`} role="status">
+      <span className="sync-dot" />
+      {SYNC_LABELS[sync.status]}
+      {failed && (
+        <button onClick={sync.retry} className="sync-retry">
+          Retry
+        </button>
+      )}
+    </p>
   );
 }

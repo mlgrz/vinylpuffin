@@ -1,0 +1,14 @@
+{
+  "name": "vinylpuffin-sync",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init": "wrangler d1 execute vinylpuffin --remote --file=schema.sql",
+    "db:init:local": "wrangler d1 execute vinylpuffin --local --file=schema.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

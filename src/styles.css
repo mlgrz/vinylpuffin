@@ -598,7 +598,8 @@ img {
 }
 .foot-links {
   display: flex;
-  gap: 14px;
+  flex-wrap: wrap;
+  gap: 2px 14px;
 }
 .foot-links button {
   background: none;
@@ -610,6 +611,39 @@ img {
 }
 .foot-links button:hover {
   color: var(--side-fg);
+}
+
+.sync-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--side-muted);
+}
+.sync-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #1c9a62;
+  flex: none;
+}
+.sync-badge.is-syncing .sync-dot {
+  background: var(--orange-2);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.sync-badge.is-offline .sync-dot,
+.sync-badge.is-error .sync-dot {
+  background: var(--side-muted);
+}
+.sync-retry {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--orange-2);
 }
 
 /* ─── main ─── */
@@ -1410,6 +1444,64 @@ img {
   flex: 1;
 }
 
+.about-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.about-brand img {
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px var(--paper),
+    0 0 0 3.5px var(--ink);
+}
+.about-brand strong {
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+.about-brand p {
+  margin: 2px 0 0;
+  color: var(--ink-2);
+  font-size: 0.92rem;
+}
+.about-credit {
+  display: inline-block;
+  margin: 20px 0 0;
+  padding: 4px 12px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  rotate: -2deg;
+}
+.report-kinds button.is-on {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+.modal .notes {
+  font-family: inherit;
+}
+.report-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 0.85rem;
+  color: var(--ink-2);
+}
+.report-error {
+  margin: 14px 0 0;
+  color: var(--danger);
+  font-size: 0.9rem;
+}
+.about-copy {
+  margin: 16px 0 0;
+  color: var(--ink-2);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
 /* ─── player bar ─── */
 
 .playerbar {
@@ -1661,8 +1753,9 @@ img {
   justify-content: center;
   gap: 36px;
   padding: 16px;
-  background: var(--orange);
-  color: var(--on-accent);
+  /* Low, warm charcoal in both themes: easy on the eyes when left on. */
+  background: radial-gradient(circle at 50% 42%, #2a241f, #13110f 70%);
+  color: #e9e2d4;
   /* cursor: none; */
   animation: idle-in 0.9s ease both;
 }
@@ -1682,6 +1775,9 @@ img {
 .idle-disc {
   position: relative;
   width: min(56vmin, 440px);
+  /* A slow, lazy turn rather than real 33⅓ rpm. */
+  animation-duration: 8s;
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.45);
   background:
     conic-gradient(
       from 20deg,
@@ -1694,7 +1790,10 @@ img {
     repeating-radial-gradient(circle, #0d0c0b 0 1.5px, #2b2621 1.5px 3px);
 }
 .idle-disc .ambient-label::after {
-  background: var(--orange);
+  background: #13110f;
+}
+.idle-caption span {
+  color: #a39a8c;
 }
 .idle-caption {
   margin: 0;
@@ -1731,6 +1830,7 @@ img {
   .brand span,
   .nav-heading,
   .sidebar-foot .me span,
+  .sync-badge,
   .crate-empty,
   .nav-count {
     display: none;
@@ -1765,6 +1865,7 @@ img {
     border-left: 1px solid var(--side-line);
   }
   .foot-links {
+    flex-wrap: nowrap;
     white-space: nowrap;
   }
   .theme-toggle.on-dark span {
